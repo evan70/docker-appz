@@ -1,0 +1,102 @@
+networks:
+  srv: {}
+services:
+  minecraft:
+    environment:
+      EULA: "TRUE"
+    image: itzg/minecraft-server
+    labels:
+      traefik.enable: "false"
+    ports:
+    - protocol: udp
+      published: 25565
+      target: 25565
+    restart: always
+    volumes:
+    - /home/evan/docker-appz/minecraft/minecraft-data:/data:rw
+  minecraft-ftb:
+    image: jonasbonno/ftb-revelation
+    labels:
+      traefik.enable: "false"
+    ports:
+    - protocol: udp
+      published: 25565
+      target: 25565
+    restart: always
+    volumes:
+    - /home/evan/docker-appz/minecraft/ftb-data:/minecraft:rw
+  traefik:
+    command:
+    - --providers.docker
+    - --providers.docker.exposedbydefault=false
+    - --providers.docker.network=make-my-server_srv
+    - --entrypoints.web.address=:80
+    - --entrypoints.web.http.redirections.entrypoint.to=websecure
+    - --entrypoints.websecure.address=:443
+    - --certificatesresolvers.myresolver.acme.email=tom@moulard.org
+    - --certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web
+    - --certificatesresolvers.myresolver.acme.httpchallenge=true
+    - --entrypoints.websecure.http.tls.certresolver=myresolver
+    - --accesslog.filepath=/logs/access.log
+    - --accesslog.format=json
+    - --log.filepath=/logs/traefik.log
+    - --log.format=json
+    - --metrics.prometheus
+    - --api.dashboard
+    - --entrypoints.websecure.http.middlewares=compress@file
+    - --experimental.plugins.fail2ban.modulename=github.com/tommoulard/fail2ban
+    - --experimental.plugins.fail2ban.version=v0.6.0
+    - --global.checknewversion=false
+    - --global.sendanonymoususage=false
+    - --pilot.token=
+    - --ping
+    - --providers.file.directory=/dynamic_conf/
+    - --providers.file.watch=true
+    healthcheck:
+      interval: 10s
+      retries: 5
+      test:
+      - CMD
+      - traefik
+      - healthcheck
+      - --ping
+      timeout: 10s
+    image: traefik:2.4
+    labels:
+      traefik.enable: "true"
+      traefik.http.middlewares.basic_auth.basicauth.users: ''
+      traefik.http.routers.traefik.middlewares: basic_auth@docker
+      traefik.http.routers.traefik.rule: Host(`traefik.localhost`)
+      traefik.http.routers.traefik.service: api@internal
+    networks:
+      srv: {}
+    ports:
+    - published: 80
+      target: 80
+    - published: 443
+      target: 443
+    restart: always
+    volumes:
+    - /home/evan/docker-appz/traefik/dynamic_conf:/dynamic_conf:rw
+    - /home/evan/docker-appz/traefik/logs:/logs:rw
+    - /var/run/docker.sock:/var/run/docker.sock:rw
+  vpn:
+    environment:
+      VPN_ADDL_PASSWORDS: ''
+      VPN_ADDL_USERS: ''
+      VPN_IPSEC_PSK: 7HfV2irvpSZ6ZFuyA5PB
+      VPN_PASSWORD: wjGamTvHCVqwMHDq
+      VPN_USER: vpnuser
+    image: hwdsl2/ipsec-vpn-server:latest
+    ports:
+    - published: 500
+      target: 500
+    - protocol: udp
+      published: 4500
+      target: 4500
+    privileged: true
+    restart: always
+    volumes:
+    - /lib/modules:/lib/modules:ro
+version: '2'
+
